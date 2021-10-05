@@ -129,7 +129,6 @@ def main():
             .option('compression', 'snappy') \
             .mode('overwrite') \
             .parquet('output/parquet_total_amount')
-
-
+##########################################################################################################
 if __name__=='__main__':
         main()
