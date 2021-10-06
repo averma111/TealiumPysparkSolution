@@ -59,7 +59,7 @@ def main():
                         StructField('browser', StringType(), True),
                         StructField('session_id', StringType(), True),
                         StructField('visit_number', IntegerType(), True),
-                        StructField('event_id', ArrayType(StringType()), True)
+                        StructField('event_ids', ArrayType(StringType()), True)
                 ]
         )
         # Getting only required columns for aggregation
@@ -164,7 +164,7 @@ def main():
                                      ) \
                                  .agg(
                                         F.count(F.col('product_exploded')) \
-                                        .alias('total_item_purchases')
+                                        .alias('total_item_purchased')
                                 ) \
                             .orderBy(F.col('dt'))
 
@@ -175,5 +175,53 @@ def main():
             .mode('overwrite') \
             .parquet('output/parquet_total_items_purchased')
 ####################################################################################################################
+        # Total number of events leading to purchase for each account, profile, and date
+
+        # Getting only required columns from dataframe visit
+        df_visits.createOrReplaceTempView('visits')
+        query = """
+                select get_json_object(value,'$.session_id') as session_id,
+                        translate(translate(get_json_object(value,'$.event_ids'),'[',''),']','') as event_ids,
+                        account as account,profile as profile,dt as dt 
+                        from visits"""
+        df_visits_converted=spark_seesion.sql(query)
+
+        join_condition_event = ['session_id']
+        join_type_event = 'inner'
+        # Joining purchases and visit dataframe
+        df_join_purchase_visit_events = df_visits_converted.join(df_purchases, join_condition_event,
+                                                                                join_type_event) \
+            .drop('customer_id', 'total_purchase_amount', 'session_id','product_codes') \
+            .select(F.col('account'),F.split(F.col('event_ids'),',').alias('event_ids'),F.col('profile'),F.col('dt'))
+
+        join_condition_event_apv = ['account', 'profile']
+        join_type_event_apv = 'left'
+        # Joining the results of purchases and visit to get only active customers
+        df_customer_purchases_visits_events = df_join_purchase_visit_events \
+            .join(df_active_customer, join_condition_event_apv, join_type_event_apv) \
+            .select(F.col('account'),F.col('profile'),F.col('dt'),F.explode(F.col('event_ids')).alias('events'))\
+            .drop('customer_id', 'is_active')
+
+        # Creating the dataframe for total events leading to purchase
+        df_items_to_purchase = df_customer_purchases_visits_events \
+            .groupby(
+            F.to_date(F.col('dt'), 'yyyy-MM-dd').alias('dt'),
+            F.col('account'),
+            F.col('profile')
+        ) \
+            .agg(
+            F.count(F.col('events')) \
+                .alias('total_event_to_purchase')
+        ) \
+            .orderBy(F.col('dt'))
+
+        # Writing results to parquet format
+        df_items_purchased.repartition('account', 'profile', 'dt') \
+            .write.partitionBy('account', 'profile', 'dt') \
+            .option('compression', 'snappy') \
+            .mode('overwrite') \
+            .parquet('output/parquet_total_event_to_purchase')
+#####################################################################################################################
+
 if __name__=='__main__':
         main()

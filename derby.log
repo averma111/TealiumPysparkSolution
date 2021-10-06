@@ -1,0 +1,13 @@
+----------------------------------------------------------------
+Wed Oct 06 00:18:53 PDT 2021:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-017c-5478-27bf-00000ac6ecb0 
+on database directory /home/ashish/PycharmProjects/TealiumPysparkSolution/metastore_db with class loader jdk.internal.loader.ClassLoaders$AppClassLoader@7aec35a 
+Loaded from file:/home/ashish/spark/jars/derby-10.12.1.1.jar
+java.vendor=Oracle Corporation
+java.runtime.version=11.0.12+8-LTS-237
+user.dir=/home/ashish/PycharmProjects/TealiumPysparkSolution
+os.name=Linux
+os.arch=amd64
+os.version=5.4.0-88-generic
+derby.system.home=null
+Database Class Loader started - derby.database.classpath=''
