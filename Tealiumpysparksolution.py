@@ -130,5 +130,50 @@ def main():
             .mode('overwrite') \
             .parquet('output/parquet_total_amount')
 ##########################################################################################################
+        # Total number of items purchased for each account, profile, and date
+
+        # Getting only required columns from dataframe visit
+        df_required_purchase_visit_code = df_visits.withColumn('visitor',
+                                                          F.from_json(F.col('value'), json_schema)) \
+                                        .select(
+                                                F.col('visitor.session_id'),
+                                                F.col('account'),
+                                                F.col('profile'),
+                                                F.col('dt')
+                                         )
+
+        join_condition_code = ['session_id']
+        join_type_code = 'inner'
+        # Joining purchases and visit dataframe
+        df_join_purchase_visit_prod_code = df_required_purchase_visit_code.join(df_purchases, join_condition_code, join_type_code) \
+            .drop('customer_id','total_purchase_amount','session_id')
+
+        join_condition_code_apv = ['account', 'profile']
+        join_type_code_apv = 'left'
+        # Joining the results of purchases and visit to get only active customers
+        df_customer_purchases_visits_code = df_join_purchase_visit_prod_code\
+                                        .join(df_active_customer, join_condition_code_apv,join_type_code_apv) \
+                                        .drop('customer_id', 'is_active')
+        # Creating the dataframe for total item purchased
+        df_items_purchased=df_customer_purchases_visits_code\
+                            .select("*",F.explode(F.col('product_codes')).alias('product_exploded'))\
+                            .groupby(
+                                     F.to_date(F.col('dt'), 'yyyy-MM-dd').alias('dt'),
+                                     F.col('account'),
+                                    F.col('profile')
+                                     ) \
+                                 .agg(
+                                        F.count(F.col('product_exploded')) \
+                                        .alias('total_item_purchases')
+                                ) \
+                            .orderBy(F.col('dt'))
+
+        # Writing results to parquet format
+        df_items_purchased.repartition('account', 'profile', 'dt') \
+            .write.partitionBy('account', 'profile', 'dt') \
+            .option('compression', 'snappy') \
+            .mode('overwrite') \
+            .parquet('output/parquet_total_items_purchased')
+####################################################################################################################
 if __name__=='__main__':
         main()
